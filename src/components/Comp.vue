@@ -1,61 +1,72 @@
 <template>
-  <div>
+  <div class="form-table-table">
     <el-table
+      v-loading="tableLoading"
       ref="multipleTable"
-      :data="tableSchema.tableAttrs.tableData"
+      :data="tableData"
       style="width: 100%"
-      :row-class-name="rowStyle"
-      @row-click="rowHandler"
+      tooltip-effect="dark"
+      :row-class-name="tableRowClassName"
+      @selection-change="handleSelectionChange"
+      @row-click="rowClick"
       border
       v-on="tableSchema.tableListeners"
       v-bind="tableSchema.tableAttrs"
+      empty-text="暂无数据"
     >
-      <!-- el-table-column是ele插槽，把tableSchema列渲染出来 -->
       <el-table-column
-        v-for="(item, index) in tableSchema.columnDesc"
+        v-for="(item, index) in columnDescHandled"
         :key="index"
         v-bind="item.attrs"
         v-on="item.listeners"
       >
       </el-table-column>
-      <!-- ele只能在这里插el-table-column -->
-      <!-- 自定义表头插槽位置 -->
-      <template v-for="(index, name) in $scopedSlots" v-slot:[name]="data">
-        <!-- 用vfor渲染slot -->
+      <!-- 自定义表头插槽位置 vfor渲染slot-->
+
+      <!-- 用户怎么用》？？？？ -->
+
+      <!-- <template v-for="(index, name) in $scopedSlots" v-slot:[name]="data">
         <slot
           :name="name"
           v-bind="data"
           v-if="showColumn.includes(name)"
         ></slot>
-      </template>
-      <!-- <CustomHeader>
-        <template v-slot:table-title="{}"> 123 </template>
-        <template #table-age> 234 </template>
-      </CustomHeader> -->
+      </template> -->
     </el-table>
-    <!--  
-    需要传递schema,可以陷Page代码，所以要用作用域插槽-->
-    <Pagination>
-      <template v-slot:pagination="{ pagination }">
-        {{ pagination }}
-      </template>
-    </Pagination>
+    <!-- 思考：表头是怎么控制显隐的,先渲染一个多选框 -->
+    <el-checkbox-group v-model="showColumn">
+      <el-checkbox
+        v-for="(item, index) in defaultColumn"
+        :key="index"
+        :label="item"
+      >{{item}}</el-checkbox>
+        <el-checkbox
+        v-for="(item, index) in disabledColumn"
+        :key="index"
+        :label="item"
+        disabled
+      >{{item}}</el-checkbox>
+    </el-checkbox-group>
+    <!-- formSchema.columnDesc数组有哪几项，就展示哪几项 -->
+
+    <el-pagination
+      v-bind="tableSchema.paginationAttrs"
+      v-on="tableSchema.paginationListeners"
+      @current-change="changePage"
+    ></el-pagination>
   </div>
 </template>
 
 <script>
-import Pagination from "./Pagination.vue";
-// import CustomHeader from "./CustomHeader.vue";
+import _ from "lodash-es";
 export default {
-  components: {
-    Pagination,
-    // CustomHeader,
-  },
   data() {
     return {
-      multipleSelection: [], //专门用来存储选中项的下标，方便使用。
+      multipleSelection: [],
+      showColumn:[],
       defaultColumn: [],
-      showColumn: [],
+      disabledColumn:[],
+      columnDescHandled: []
     };
   },
   props: {
@@ -63,45 +74,63 @@ export default {
       type: Object,
       default: () => ({}),
     },
+    tableData: {
+      type: Array,
+      default: () => [],
+    },
+    tableLoading: {
+      type: Boolean,
+      default: false,
+    },
+    /**
+     * 切换分页函数，默认分页组件切换时会调用，返回值会赋值给tableData
+     */
+    changePage: {
+      type: Function,
+      default: () => {},
+    },
   },
   mounted() {
-    const len = this.$props.tableSchema.tableAttrs.tableData.length;
-    for (let i = 0; i < len; i++) {
-      this.$props.tableSchema.tableAttrs.tableData[i].id = i;
-    }
+    this.defaultColumn = this.tableSchema.tableColumnSetting.defaultColumn;
+    this.disabledColumn = this.tableSchema.tableColumnSetting.disabledColumn;
+    this.showColumn = [...this.defaultColumn, ...this.disabledColumn]
+    this.columnDescHandled = this.tableSchema.columnDesc;
   },
-  methods: {
-    rowStyle({ row, rowIndex }) {
-      let arr = this.multipleSelection;
-      for (let i = 0; i < arr.length; i++) {
-        //   lodash find优化
-        if (rowIndex === arr[i]) {
-          return "rowStyle";
-        }
-      }
+  watch: {
+    showColumn() {
+        this.columnDescHandled= this.tableSchema.columnDesc.filter((ele)=>{
+          return this.showColumn.includes(ele.attrs.prop)
+      })
     },
-    rowHandler(e) {
-    this.$refs.multipleTable.toggleRowSelection(e);
-      if (this.multipleSelection.includes(e.id)) {
-        this.multipleSelection = this.multipleSelection.filter((ele) => {
-          return ele !== e.id;
+  },
+
+  methods: {
+    tableRowClassName({ row }) {
+      return _.find(this.multipleSelection, (item) => item.name === row.name)
+        ? "heighlight"
+        : "";
+    },
+    rowClick(row) {
+      this.$refs.multipleTable.toggleRowSelection(row);
+    },
+    toggleSelection(rows) {
+      if (rows) {
+        rows.forEach((row) => {
+          this.$refs.multipleTable.toggleRowSelection(row);
         });
       } else {
-        this.multipleSelection.push(e.id);
+        this.$refs.multipleTable.clearSelection();
       }
-      // console.log(e.id);
-      // 多选的情况
-      //   this.$refs.multipleTable.toggleRowSelection(
-      //     this.tableSchema.tableAttrs.tableData[e],
-      //     this.multipleSelection.includes(e.id)
-      //   );
+    },
+    handleSelectionChange(val) {
+      this.multipleSelection = val;
     },
   },
 };
 </script>
 <style>
-.rowStyle {
-  background-color: #fdf4d1 !important;
+.el-table .heighlight {
+  background: oldlace;
 }
 .el-table .el-table__cell {
   padding: 2px 0 !important;
